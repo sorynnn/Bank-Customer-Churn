@@ -1,0 +1,111 @@
+---
+title: "Bank Customer Churn"
+author: "Soryn Lurding"
+date: "2024-10-24"
+output: pdf_document
+---
+
+## Customer Churn
+
+In this assignment, you will estimate a survival analysis model on customer churn. In this dataset, you will find various characteristics about a set of phone company customers
+
+customerID: Customer ID number
+gender: Provides the stated gender of the customer
+SeniorCitizen: States if the person is a senior citizen
+Partner: Does the person have a partner
+Dependents: Does the person have dependents
+tenure: States how long the person has been with the Bank
+PhoneService: Do they have phone service
+MultipleLines: Do they have multiple lines
+InternetService: What type of Internet Service do they have (DSL, fiber optic, none)
+OnlineSecurity: Do they have online security?
+OnlineBackup: Do they have online backup?
+DeviceProtection: Do they have device protection?
+TechSupport: Did they use tech support?
+StreamingTV: Do they use the internet to stream TV?
+StreamingMovies: Do they use the internet to stream movies?
+Contract: What type of contract do they have (month-to-month, one-year, or two year)
+PaperlessBilling: Do they use paperless biling
+PaymentMethod: How do they pay for services
+MonthlyCharges: What is their monthly charge?
+TotalCharges: What is their total charge for the quarter?
+Churn: Did they leave the company
+
+
+1) Find the simple average of `tenure`. Explain why this simple average can be biased.
+```{r comment=FALSE, warning=FALSE, message=FALSE}
+library(readr)
+bank <- read_csv("~/Downloads/WA_Fn-UseC_-Telco-Customer-Churn.csv")
+library(modelsummary)
+library(survival)
+library(ggplot2)
+
+ggplot(bank, aes(x = tenure)) +
+  geom_histogram(binwidth = 1, fill = "pink", color = "navy") +
+  labs(
+    title = "Distribution of Customer Tenure at the Bank",
+    x = "Tenure",
+    y = "Number of Customers")
+
+```
+The average tenure of a customer at this bank is `r format(mean(bank$tenure), digits = 4)` months.
+This average can be biased because, as shown by the histogram, it is showing those who haven't been with the bank very long which is pretty high compared to the rest of the data.
+
+2) Find the simple average of `tenure` by the following groups. Gender, SeniorCitizen, and Partner.
+```{r}
+bank$SeniorCitizen <- factor(bank$SeniorCitizen, labels = c("No", "Yes"))
+datasummary(tenure ~ Mean*gender + Mean*SeniorCitizen + Mean*Partner, coef_rename=c("gender"="Gender"), title = "Tenure by Gender, Senior Citizen, and Partner", data = bank)
+```
+
+3) Find the simple average of `tenure` and `MonthlyCharge` by `Contract` type.
+```{r}
+datasummary(tenure + MonthlyCharges ~ Mean*Contract, coef_rename=c("tenure"="Tenure"), title = "Tenure and Monthly Charnges by Contract type", data = bank)
+```
+
+4) Estimate a Kaplan Meier survival model. Use gender and senior citizen as explanatory variables. Do these variables produce statistically different survival rates?
+```{r}
+library(survminer)
+bank$delta <- ifelse(bank$Churn=="Yes",1,0)
+
+survminer::ggsurvplot(
+    fit = survival::survfit(survival::Surv(tenure, delta) ~ gender+SeniorCitizen, data = bank), 
+    xlab = "Months",
+    ylab = "Overall survival probability",
+    censor = FALSE,
+    title = "Survival Probability by Gender and Senior Citizen Status",
+    legend.title = "Legend",
+    legend.labs = c("Female, Not Senior", "Female, Senior", "Male, Not Senior", "Male, Senior")
+    )
+```
+```{r}
+survival::survfit(survival::Surv(tenure, delta) ~ gender+SeniorCitizen, data = bank)
+```
+
+We observe a difference in Seniors vs Non-seniors in terms of continuing service with the bank. This graph states that non-seniors have a higher liklihood of staying at the bank than seniors. 
+
+5) Estimate a Kaplan Meier survival model that uses contract type as the explanatory variable. Do we see a difference between contract type?
+```{r}
+survminer::ggsurvplot(
+    fit = survival::survfit(survival::Surv(tenure, delta) ~ Contract, data = bank), 
+    xlab = "Months",
+    ylab = "Overall survival probability",
+    title = "Survival on Contract Type",
+    legend.title = "Contract Type",
+    legend.labs = c("Month-to-month", "One year", "Two year"),
+    censor = FALSE)
+```
+```{r}
+survival::survfit(survival::Surv(tenure, delta) ~ Contract, data = bank)
+```
+
+From this graph we can see that the longer the contract is, the more likely the customer is to stay. Month-to-month contracts are less likely to stay with the bank for an extended amount of time, followed by a one year contract, and a two year contract is more likely to stay with the bank the longest.
+
+6) Estimate a Cox proportional hazard model of `tenure`. Use the following variables as explanatory variables: gender, seniorcitizen, contract type, partner, dependents, type of internet access, do they have phone service, and do they use paperless billing.
+```{r}
+f1 <- survival::coxph(survival::Surv(tenure, delta) ~ gender+SeniorCitizen+Partner+Dependents+Contract+PhoneService+InternetService+PaperlessBilling, data = bank)
+modelsummary(list(f1), stars = TRUE, title = "Cox Proportional Hazard Model")
+```
+
+This model is interpreted by having the higher values being more likely to leave. As we can see with the model, having a partner is highly significant to staying with the bank (at the 0.001 significance level). Contract type is also highly significant at the 0.001 level, backing our Survival on Contract Type graph, as a two year contract is more likely to continue services with the bank than a one year contract. We can also see that Fiber optic internet service is highly significant at the 0.001 level and makes customers more likely to discontinue their service with the bank.
+Having no internet service makes a customer less likely to discontinue their service with the bank (significant at the 0.1 level). We can also see that paperless billing makes a customer more likely to discontinue service with the bank (significant at the 0.1 level).
+Other factors such as having phone service, having dependents, being a senior citizen, and being male are not significant.
