@@ -7,8 +7,6 @@ output: pdf_document
 
 ## Customer Churn
 
-In this assignment, you will estimate a survival analysis model on customer churn. In this dataset, you will find various characteristics about a set of phone company customers
-
 customerID: Customer ID number
 gender: Provides the stated gender of the customer
 SeniorCitizen: States if the person is a senior citizen
